@@ -42,7 +42,7 @@ uniform float depth_shift;
 
 const float max_distance = 1.3;
 
-const int num_samples = 200;
+const int num_samples = 2000;
 const float step_size = max_distance / float(num_samples);
 
 float _normalize(float val, float from, float to) { return (val-from) / (to - from);}
