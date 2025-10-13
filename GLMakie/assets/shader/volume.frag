@@ -297,12 +297,69 @@ vec4 isosurface(vec3 front, vec3 dir)
     return c;
 }
 
+float initialize_adaptive_sampling(out vec3 t1_candidate, out vec3 dt, vec3 front, vec3 dir)
+{
+    // size of a grid cell
+    vec3 dx = 1.0 / textureSize(volumedata, 0);
+
+    // indices of a vertex of the current grid cell
+    ivec3 i = ivec3(front / dx); // casting takes floor()
+
+    // opposing vertex of current grid cell is `i + di`
+    ivec3 di = ivec3(1, 1, 1);
+
+    // choose the vertices so that `t(i) < t(i + di)`, where `t(i)` is the
+    // point along the ray closest to the vertex `i`
+    for (int d = 0; d < 3; d++) {
+        if (dir[d] < 0.0) {
+            i[d] += 1;
+            di[d] = -1;
+        }
+    }
+
+    // outputs:
+    //   dt: step sizes for the ray to cross a grid cell along each coordinate
+    //   t1_candidate: the time at which the ray would cross a grid boundary for each coordinate
+    // Returns the time the ray crosses into the next grid cell.
+    dt = di * dx / dir;
+    t1_candidate = ((i + di) * dx - front) / dir;
+    return min(t1_candidate.x, min(t1_candidate.y, t1_candidate.z));
+}
+
+float next_step(inout float t0, inout vec3 t1_candidate, vec3 dt)
+{
+    // determine direction to increment
+    int d = 0;
+    if (t1_candidate.y < t1_candidate.x)
+        d = 1;
+    if (t1_candidate.z < t1_candidate[d])
+        d = 2;
+
+    // calculate evaluation point
+    float tmid = (t0 + t1_candidate[d]) / 2.0;
+
+    // prepare for next iteration
+    t0 = t1_candidate[d];
+    t1_candidate[d] += dt[d];
+
+    return tmid;
+}
+
 vec4 mip(vec3 front, vec3 dir)
 {
-    vec3 pos = front + dir;
+    vec3 t1_candidate, dt;
+    float t1 = initialize_adaptive_sampling(t1_candidate, dt, front, dir);
+    float tmax = float(num_samples); // by construction of 'dir'
+
     int i = 1;
     float maximum = texture(volumedata, front).x;
-    for (i; i < num_samples; ++i, pos += dir){
+    for (i; i < num_samples; ++i){
+        float tmid = next_step(t1, t1_candidate, dt);
+        if (tmid > tmax)
+            break;
+
+        // get color
+        vec3 pos = tmid * dir + front;
         float density = texture(volumedata, pos).x;
         if(maximum < density)
             maximum = density;
