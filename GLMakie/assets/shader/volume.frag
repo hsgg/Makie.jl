@@ -354,9 +354,10 @@ vec4 mip(vec3 front, vec3 dir)
     int i = 1;
     float maximum = texture(volumedata, front).x;
     for (i; i < num_samples; ++i){
-        float tmid = next_step(t1, t1_candidate, dt);
-        if (tmid > tmax)
+        // stop if next grid cell is completely outside viewing volume
+        if (t1 >= tmax)
             break;
+        float tmid = next_step(t1, t1_candidate, dt);
 
         // get color
         vec3 pos = tmid * dir + front;
